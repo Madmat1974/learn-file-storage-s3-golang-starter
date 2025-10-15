@@ -251,6 +251,7 @@ async function getVideo(videoID) {
 let currentVideo = null;
 
 function viewVideo(video) {
+  console.log('viewVideo called:', video.id || video.title);
   currentVideo = video;
   document.getElementById('video-display').style.display = 'block';
   document.getElementById('video-title-display').textContent = video.title;
@@ -260,8 +261,8 @@ function viewVideo(video) {
   if (!video.thumbnail_url) {
     thumbnailImg.style.display = 'none';
   } else {
-    thumbnailImg.style.display = 'block';
-    thumbnailImg.src = video.thumbnail_url;
+    thumbnailImg.style.display = "block";
+    thumbnailImg.src = `${video.thumbnail_url}?v=${Date.now()}`;
   }
 
   const videoPlayer = document.getElementById('video-player');
