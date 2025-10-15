@@ -2,22 +2,23 @@ package main
 
 import (
 	"io"
+	"path/filepath"
 	"mime"
 	"net/http"
 	"os"
-
+	"crypto/rand"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
+	"encoding/base64"
 )
 
 func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Request) {
-	videoIDString := r.PathValue("videoID")
-	videoID, err := uuid.Parse(videoIDString)
+	videoIDStr := r.PathValue("videoID")
+	vid, err := uuid.Parse(videoIDStr)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid ID", err)
-		return
+    	respondWithError(w, http.StatusBadRequest, "Invalid video ID", err)
+    	return
 	}
-
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
@@ -50,8 +51,27 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	assetPath := getAssetPath(videoID, mediaType)
+	random := make([]byte, 32)
+	if _, err := rand.Read(random); err != nil {
+    	respondWithError(w, http.StatusInternalServerError, "Failed to generate random name", err)
+    	return
+	}
+	name := base64.RawURLEncoding.EncodeToString(random)
+
+	// derive extension
+	ext := "jpeg"
+	if mediaType == "image/png" {
+    	ext = "png"
+	}
+	// build asset path (adjust folder to your convention)
+	assetPath := "thumbnails/" + name + "." + ext
 	assetDiskPath := cfg.getAssetDiskPath(assetPath)
+
+	dir := filepath.Dir(assetDiskPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to prepare asset directory", err)
+		return
+	}
 
 	dst, err := os.Create(assetDiskPath)
 	if err != nil {
@@ -64,7 +84,8 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	video, err := cfg.db.GetVideo(videoID)
+	video, err := cfg.db.GetVideo(vid)
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't find video", err)
 		return
